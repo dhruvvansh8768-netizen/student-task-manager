@@ -6,22 +6,68 @@ const emptyMessage = document.getElementById("emptyMessage");
 const filterButtons = document.querySelectorAll(".filter");
 
 let tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+let history = JSON.parse(localStorage.getItem("taskHistory")) || [];
 let currentFilter = "all";
 
-function saveTasks() {
+function saveData() {
   localStorage.setItem("tasks", JSON.stringify(tasks));
+  localStorage.setItem("taskHistory", JSON.stringify(history));
+}
+
+function showHistory() {
+  taskList.innerHTML = "";
+
+  if (history.length === 0) {
+    emptyMessage.style.display = "block";
+    emptyMessage.textContent = "No completed task history yet.";
+    return;
+  }
+
+  emptyMessage.style.display = "none";
+
+  history.forEach((item) => {
+    const li = document.createElement("li");
+    li.className = "task-item history-item";
+
+    const textBox = document.createElement("div");
+    textBox.className = "task-text";
+    textBox.textContent = item.text;
+
+    const completedDate = document.createElement("span");
+    completedDate.className = "task-date";
+    completedDate.textContent = `Completed: ${item.completedAt}`;
+
+    li.append(textBox, completedDate);
+    taskList.appendChild(li);
+  });
 }
 
 function renderTasks() {
+  if (currentFilter === "history") {
+    showHistory();
+    return;
+  }
+
   taskList.innerHTML = "";
 
   const filteredTasks = tasks.filter((task) => {
-    if (currentFilter === "pending") return !task.completed;
-    if (currentFilter === "completed") return task.completed;
+    if (currentFilter === "pending") {
+      return !task.completed;
+    }
+
+    if (currentFilter === "completed") {
+      return task.completed;
+    }
+
     return true;
   });
 
-  emptyMessage.style.display = filteredTasks.length ? "none" : "block";
+  if (filteredTasks.length === 0) {
+    emptyMessage.style.display = "block";
+    emptyMessage.textContent = "No tasks found.";
+  } else {
+    emptyMessage.style.display = "none";
+  }
 
   filteredTasks.forEach((task) => {
     const li = document.createElement("li");
@@ -33,7 +79,20 @@ function renderTasks() {
 
     checkbox.addEventListener("change", () => {
       task.completed = checkbox.checked;
-      saveTasks();
+
+      if (task.completed) {
+        task.completedAt = new Date().toLocaleString();
+
+        history.unshift({
+          id: Date.now(),
+          text: task.text,
+          completedAt: task.completedAt
+        });
+      } else {
+        task.completedAt = null;
+      }
+
+      saveData();
       renderTasks();
     });
 
@@ -43,7 +102,12 @@ function renderTasks() {
 
     const dueDate = document.createElement("span");
     dueDate.className = "task-date";
-    dueDate.textContent = task.date ? `Due: ${task.date}` : "";
+
+    if (task.completed && task.completedAt) {
+      dueDate.textContent = `Completed: ${task.completedAt}`;
+    } else if (task.date) {
+      dueDate.textContent = `Due: ${task.date}`;
+    }
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "delete-btn";
@@ -51,7 +115,7 @@ function renderTasks() {
 
     deleteButton.addEventListener("click", () => {
       tasks = tasks.filter((item) => item.id !== task.id);
-      saveTasks();
+      saveData();
       renderTasks();
     });
 
@@ -67,13 +131,16 @@ taskForm.addEventListener("submit", (event) => {
     id: Date.now(),
     text: taskInput.value.trim(),
     date: dateInput.value,
-    completed: false
+    completed: false,
+    completedAt: null
   };
 
-  if (!newTask.text) return;
+  if (!newTask.text) {
+    return;
+  }
 
   tasks.push(newTask);
-  saveTasks();
+  saveData();
   taskForm.reset();
   renderTasks();
 });
@@ -82,9 +149,11 @@ filterButtons.forEach((button) => {
   button.addEventListener("click", () => {
     currentFilter = button.dataset.filter;
 
-    filterButtons.forEach((btn) => btn.classList.remove("active"));
-    button.classList.add("active");
+    filterButtons.forEach((btn) => {
+      btn.classList.remove("active");
+    });
 
+    button.classList.add("active");
     renderTasks();
   });
 });
